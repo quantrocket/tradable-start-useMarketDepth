@@ -14,12 +14,12 @@
 		<dependency>
 			<groupId>com.tradable.api</groupId>
 			<artifactId>tradable-api</artifactId>
-			<version>27.7</version>
+			<version>27.8</version>
 		</dependency>
         <dependency>
             <groupId>com.tradable.api</groupId>
             <artifactId>tradable-widgets</artifactId>
-            <version>27.7</version>
+            <version>27.8</version>
         </dependency>
 		<dependency>
       		<groupId>org.springframework</groupId>
