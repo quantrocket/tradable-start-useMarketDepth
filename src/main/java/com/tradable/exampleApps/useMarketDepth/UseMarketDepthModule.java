@@ -2,13 +2,11 @@ package com.tradable.exampleApps.useMarketDepth;
 
 
 import java.awt.Color;
+import java.math.BigDecimal;
 
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextPane;
-import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 
 import com.tradable.api.component.WorkspaceModule;
@@ -19,8 +17,12 @@ import com.tradable.api.services.marketdata.MarketDepthListener;
 import com.tradable.api.services.marketdata.MarketDepthService;
 import com.tradable.api.services.marketdata.MarketDepthSubscription;
 import com.tradable.api.services.marketdata.Quote;
-
+import javax.swing.JTextPane;
+import javax.swing.JScrollBar;
 import javax.swing.text.BadLocationException;
+
+import java.awt.ScrollPane;
+import javax.swing.JScrollPane;
 
 public class UseMarketDepthModule extends JPanel implements WorkspaceModule, MarketDepthListener{
 	
@@ -34,6 +36,18 @@ public class UseMarketDepthModule extends JPanel implements WorkspaceModule, Mar
 	private JLabel lblBidVWAPQuant;
 	private JLabel lblAskVWAP;
 	private JLabel lblAskVWAPQuant;
+	
+	////////See marketDepthUpdated(..) method to see what those are for//////
+	private int volumeToTrade = 25000000; //volumeToTrade
+	
+	private int bidTradeQuantity = 0;
+	double bidVWP = 0.0; //non averaged yet
+	private BigDecimal bidVWAP;
+	
+	private int askTradeQuantity = 0;
+	double askVWP = 0.0;
+	private BigDecimal askVWAP;
+	/////////////////////////////////////////////////////////////////////////
 	
 	public UseMarketDepthModule(MarketDepthService marketDepthService) {
 		setLayout(null);
@@ -69,7 +83,7 @@ public class UseMarketDepthModule extends JPanel implements WorkspaceModule, Mar
 		lblAskVWAPQuant = new JLabel("AskQuant");
 		lblAskVWAPQuant.setBounds(64, 259, 319, 31);
 		add(lblAskVWAPQuant);
-			
+		
 	}
 
 	@Override
@@ -106,63 +120,78 @@ public class UseMarketDepthModule extends JPanel implements WorkspaceModule, Mar
 	public void marketDepthUpdated(MarketDepthEvent event) {
 		
 		
-		int vtt = 25000000; //volumeToTrade
-		int bidTradeQuantity = 0;
-		double bidVWP = 0; //non averaged yet
-		double bidVWAP = 0;
-	
+		volumeToTrade = 19000000; //chosen arbitrarily
+		bidTradeQuantity = 0;
+		bidVWP = 0.0; 
+		askTradeQuantity = 0;
+		askVWP = 0.0;
+
+		
+		
         String symbol = event.getSymbol();
         
+        //we calculate the VWAP for the bid price using the standard
+        //VWAP formula. The final value is stored in a BigDecimal object,
+        //We note that theoretically, the bid VWAP will always be <= to the 
+        //smaller volume bid (as seen in the Order Entry App for instance)
+        //the converse is true for the ask VWAP.
 		for (Quote bid : event.getSource().getBids(symbol)){
 			
-			if(bid.getPrice() > vtt){
-				bidTradeQuantity += vtt;
-				bidVWP += vtt*bid.getPrice();
-				vtt = 0;
+			if(bid.getSize() > volumeToTrade){
+				bidTradeQuantity += volumeToTrade;
+				bidVWP += volumeToTrade*bid.getPrice();
+				volumeToTrade = 0;
 			}
 			else{
 				bidTradeQuantity += bid.getSize();
 				bidVWP += bid.getPrice()*bid.getSize();
-				vtt -= bid.getSize();
+				volumeToTrade -= bid.getSize();
 			}
 			
-			if(vtt == 0)
+			if(volumeToTrade == 0)
 				break;
+		
 		}
-        
-		bidVWAP = bidVWP/bidTradeQuantity;
-		lblBidVWAP.setText("Bid VWAP: " + String.valueOf(bidVWAP));
+         
+		//Please note, MarketDepth data will be provided
+		//for the chosen symbol for a maximum of 18M.
+		//This maximum is almost always provided although
+		//There might be some exceptions.
+		//For other symbols, the provided liquidity might be different.
+		//e.g. XAUUSD will only provide up to 1k.
+		bidVWAP = new BigDecimal(bidVWP/bidTradeQuantity);
+		bidVWAP = bidVWAP.setScale(5, BigDecimal.ROUND_HALF_UP);
+		lblBidVWAP.setText("Bid VWAP: " + bidVWAP.toPlainString());
 		lblBidVWAPQuant.setText("found bid liquidity for " + String.valueOf(bidTradeQuantity)
-				+ " of " + String.valueOf(vtt + bidTradeQuantity));
+				+ " of " + String.valueOf(volumeToTrade + bidTradeQuantity));
 		
 		
-		vtt += bidTradeQuantity; //volumeToTrade
-		int askTradeQuantity = 0;
-		double askVWP = 0; //non averaged yet
-		double askWAP = 0;
+		volumeToTrade += bidTradeQuantity; //volumeToTrade
 	
         
 		for (Quote ask : event.getSource().getOffers(symbol)){
 			
-			if(ask.getPrice() > vtt){
-				askTradeQuantity += vtt;
-				askVWP += vtt*ask.getPrice();
-				vtt = 0;
+			if(ask.getSize() > volumeToTrade){
+				askTradeQuantity += volumeToTrade;
+				askVWP += volumeToTrade*ask.getPrice();
+				volumeToTrade = 0;
 			}
 			else{
 				askTradeQuantity += ask.getSize();
 				askVWP += ask.getPrice()*ask.getSize();
-				vtt -= ask.getSize();
+				volumeToTrade -= ask.getSize();
 			}
 			
-			if(vtt == 0)
+			if(volumeToTrade == 0)
 				break;
+
 		}
         
-		askWAP = askVWP/askTradeQuantity;
-		lblAskVWAP.setText("Ask VWAP: " + String.valueOf(askWAP));
+		askVWAP = new BigDecimal(askVWP /= askTradeQuantity);
+		askVWAP = askVWAP.setScale(5, BigDecimal.ROUND_HALF_UP);
+		lblAskVWAP.setText("Ask VWAP: " + askVWAP.toPlainString());
 		lblAskVWAPQuant.setText("found ask liquidity for " + String.valueOf(askTradeQuantity)
-				+ " of " + String.valueOf(vtt + askTradeQuantity));
+				+ " of " + String.valueOf(volumeToTrade + askTradeQuantity));
 
 		
 	}
